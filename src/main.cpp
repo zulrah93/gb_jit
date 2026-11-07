@@ -14,13 +14,13 @@ int main(int argument_count, char** arguments)
         const char* rom_path = arguments[1];
         const std::string title_string = std::format("Gameboy JIT [{}]", rom_path);
         gameboy_rom_t rom(rom_path);
-        std::vector<uint8_t> boot_logo;
+        std::vector<uint8_t> boot_logo_buffer;
         if (!rom) {
             std::cout << "Invalid rom @ " << rom_path << std::endl;
         }
-        rom.get_nintendo_boot_logo(boot_logo);
+        rom.get_nintendo_boot_logo(boot_logo_buffer);
         std::cout << "Nintendo Boot Logo Bytes: " << std::endl;
-        for (auto& byte : boot_logo) {
+        for (auto& byte : boot_logo_buffer) {
             std::cout << std::hex << static_cast<uint16_t>(byte) << std::dec << " ";
         }
         std::cout << std::endl;
@@ -35,23 +35,47 @@ int main(int argument_count, char** arguments)
 
             ClearBackground(WHITE);
             DrawText(rom.get_rom_title().c_str(), 0, 0, 5, BLACK);
-            int32_t x{5}, y{10};
-            for(size_t top_half_index{}; top_half_index < 24; top_half_index++) {
-                std::bitset<8> current_byte{boot_logo[top_half_index]};
-                for(size_t bit_index{}; bit_index < current_byte.count(); bit_index++) {
-                    if (!current_byte[current_byte.count() - bit_index - 1]) {
-                        DrawPixel(x + (bit_index), y + ((bit_index < 4) ? 0 : 1), BLACK);
+
+            int32_t x_origin{SCREEN_WIDTH / 2};
+            int32_t y_origin{SCREEN_HEIGHT / 2};
+            for (int index = 0; index < boot_logo_buffer.size(); index++) {
+                int32_t half = (index < 24) ? 0 : 1;
+                int32_t block = index % 12;
+                for (int32_t row{}; row < 4; row++) {
+                    uint8_t byte = boot_logo_buffer[half * 24 + block * 2 + row / 2];
+                    uint8_t nibble = (row % 2 == 0) ? (byte >> 4) : (byte & 0x0F);
+                    for (int bit = 0; bit < 4; bit++) // MSB of nibble = leftmost pixel
+                    {
+                        int32_t x = block * 4 + bit;
+                        int32_t y = half * 4 + row;
+                        if ((nibble >> (3 - bit)) & 1) {
+                            DrawPixel(x + x_origin , y + y_origin, BLACK);
+                        }
                     }
                 }
             }
-            for(size_t bottom_half_index{}; bottom_half_index < 24; bottom_half_index++) {
-                std::bitset<8> current_byte{boot_logo[bottom_half_index]};
-                for(size_t bit_index{}; bit_index < current_byte.count(); bit_index++) {
-                    if (!current_byte[current_byte.count() - bit_index - 1]) {
-                        DrawPixel(x + (bit_index), y + 1 + ((bit_index < 4) ? 0 : 1), BLACK);
+            /*for (int half = 0; half < 2; half++)          // 0 = top rows 0-3, 1 = bottom rows 4-7
+            {
+                for (int block = 0; block < 12; block++)  // 12 blocks of 4 pixels across
+                {
+                    for (int row = 0; row < 4; row++)     // 4 rows per block
+                    {
+                        // 2 bytes per block, 2 nibbles (rows) per byte
+                        uint8_t byte = boot_logo_buffer[half * 24 + block * 2 + row / 2];
+                        uint8_t nibble = (row % 2 == 0) ? (byte >> 4) : (byte & 0x0F);
+
+                        for (int bit = 0; bit < 4; bit++) // MSB of nibble = leftmost pixel
+                        {
+                            int x = block * 4 + bit;
+                            int y = half * 4 + row;
+                            if ((nibble >> (3 - bit)) & 1) {
+                                DrawPixel(x, y, BLACK);
+                            }
+                        }
                     }
                 }
-            }
+            }*/
+
 
             EndTextureMode();
 
