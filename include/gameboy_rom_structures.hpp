@@ -1,5 +1,5 @@
-#ifndef GAMEBOY_CPU_STRUCTS_HPP
-#define GAMEBOY_CPU_STRUCTS_HPP
+#ifndef GAMEBOY_ROM_STRUCTS_HPP
+#define GAMEBOY_ROM_STRUCTS_HPP
 
 #include <vector>
 #include <string>
@@ -72,4 +72,4 @@ private:
 
 
 
-#endif
+#endif //GAMEBOY_ROM_STRUCTS_HPP
