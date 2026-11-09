@@ -7,14 +7,14 @@
 static constexpr Color GB_BACKGROUND =  (Color){155, 188, 15, 255};
 static constexpr Color GB_FOREGROUND =  (Color){15, 56, 15, 255};
 
-struct pallete_t {
+struct palete_t {
     Color color1;
     Color color2;
     Color color3;
     Color color4;
 };
 
-bool draw_gameboy_8_x_8_tile(const std::vector<uint8_t>& tile_data, const int32_t x, const int32_t y, pallete_t pallete) {
+bool draw_gameboy_8_x_8_tile(const std::vector<uint8_t>& tile_data, const int32_t x, const int32_t y, palete_t palete) {
     if (tile_data.size() != 16) {
         return false;
     }
@@ -30,19 +30,57 @@ bool draw_gameboy_8_x_8_tile(const std::vector<uint8_t>& tile_data, const int32_
 
             switch (left_bit | right_bit) {
                 case 0: {
-                    DrawPixel(x + bit_x, y + bit_y, pallete.color1);
+                    DrawPixel(x + bit_x, y + bit_y, palete.color1);
                     break;
                 }
                 case 1: {
-                    DrawPixel(x + bit_x, y + bit_y, pallete.color2);
+                    DrawPixel(x + bit_x, y + bit_y, palete.color2);
                     break;
                 }
                 case 2: {
-                    DrawPixel(x + bit_x, y + bit_y, pallete.color3);
+                    DrawPixel(x + bit_x, y + bit_y, palete.color3);
                     break;
                 }
                 case 3: {
-                    DrawPixel(x + bit_x, y + bit_y, pallete.color4);
+                    DrawPixel(x + bit_x, y + bit_y, palete.color4);
+                    break;
+                }
+            }
+        }
+        row++;
+    }
+    return true;
+}
+
+bool draw_gameboy_8_x_16_tile(const std::vector<uint8_t>& tile_data, const int32_t x, const int32_t y, palete_t palete) {
+    if (tile_data.size() != 32) {
+        return false;
+    }
+    size_t row{};
+    for (size_t index{}; index < tile_data.size(); index += 2) {
+        uint8_t tile_left = tile_data[index];
+        uint8_t tile_right = tile_data[index+1];
+        for (int32_t bit_index = 7; bit_index >= 0; bit_index--) {
+            int32_t left_bit = ((tile_left & (1 << bit_index)) >> bit_index);
+            int32_t right_bit = ((tile_right & (1 << bit_index)) >> bit_index) << 1;
+            const int32_t bit_x = (8 - bit_index - 1);
+            const int32_t bit_y = static_cast<int32_t>(row);
+
+            switch (left_bit | right_bit) {
+                case 0: {
+                    DrawPixel(x + bit_x, y + bit_y, palete.color1);
+                    break;
+                }
+                case 1: {
+                    DrawPixel(x + bit_x, y + bit_y, palete.color2);
+                    break;
+                }
+                case 2: {
+                    DrawPixel(x + bit_x, y + bit_y, palete.color3);
+                    break;
+                }
+                case 3: {
+                    DrawPixel(x + bit_x, y + bit_y, palete.color4);
                     break;
                 }
             }
