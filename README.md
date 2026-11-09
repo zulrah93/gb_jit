@@ -6,5 +6,7 @@ Project uses raylib for the graphics
 
 # WIP Screenshot
 
-<img width="1284" height="1218" alt="image" src="https://github.com/user-attachments/assets/43432494-fdf1-4b7c-a0f6-2665fb2b5576" />
+<img width="1504" height="1440" alt="image" src="https://github.com/user-attachments/assets/232d28f7-f406-4294-a4d9-0de3e58ebf44" />
+
+
 
