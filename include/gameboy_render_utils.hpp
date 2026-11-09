@@ -7,20 +7,44 @@
 static constexpr Color GB_BACKGROUND =  (Color){155, 188, 15, 255};
 static constexpr Color GB_FOREGROUND =  (Color){15, 56, 15, 255};
 
+struct pallete_t {
+    Color color1;
+    Color color2;
+    Color color3;
+    Color color4;
+};
 
-bool draw_gameboy_8_x_8_tile(const std::vector<uint8_t>& tile_data, const int32_t x, const int32_t y) {
+bool draw_gameboy_8_x_8_tile(const std::vector<uint8_t>& tile_data, const int32_t x, const int32_t y, pallete_t pallete) {
     if (tile_data.size() != 16) {
         return false;
     }
     size_t row{};
     for (size_t index{}; index < tile_data.size(); index += 2) {
-        const uint8_t tile = tile_data[index] | tile_data[index+1]; // Or is it boolean or?
-        std::bitset<8> tile_bits{tile};
-        for (size_t bit_index{}; bit_index < tile_bits.size(); bit_index++) {
-            const int32_t bit_x = bit_index;
+        uint8_t tile_left = tile_data[index];
+        uint8_t tile_right = tile_data[index+1];
+        for (int32_t bit_index = 7; bit_index >= 0; bit_index--) {
+           int32_t left_bit = ((tile_left & (1 << bit_index)) >> bit_index);
+            int32_t right_bit = ((tile_right & (1 << bit_index)) >> bit_index) << 1;
+            const int32_t bit_x = (8 - bit_index - 1);
             const int32_t bit_y = static_cast<int32_t>(row);
-            if (tile_bits[tile_bits.size() - bit_index - 1]) {
-                DrawPixel(x + bit_x, y + bit_y, GB_FOREGROUND);
+
+            switch (left_bit | right_bit) {
+                case 0: {
+                    DrawPixel(x + bit_x, y + bit_y, pallete.color1);
+                    break;
+                }
+                case 1: {
+                    DrawPixel(x + bit_x, y + bit_y, pallete.color2);
+                    break;
+                }
+                case 2: {
+                    DrawPixel(x + bit_x, y + bit_y, pallete.color3);
+                    break;
+                }
+                case 3: {
+                    DrawPixel(x + bit_x, y + bit_y, pallete.color4);
+                    break;
+                }
             }
         }
         row++;
