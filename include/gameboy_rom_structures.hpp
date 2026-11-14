@@ -26,6 +26,7 @@ public:
             return;
         }
         m_bytes_read = fread(m_rom_buffer, sizeof(uint8_t), MAX_GB_ROM_SIZE, handle);
+        std::cout <<m_bytes_read << std::endl;
         m_rom_loaded = m_bytes_read > 0;
         fclose(handle);
     }
@@ -62,9 +63,19 @@ public:
         return title;
     }
 
+
+    //Dangerous no copy is made
+    const int8_t* get_rom_data() {
+        return m_rom_buffer;
+    }
+
+    const size_t get_rom_size() {
+        return m_bytes_read;
+    }
+
 private:
     bool m_rom_loaded{false};
-    int8_t m_rom_buffer[MAX_GB_ROM_SIZE / 2];
+    int8_t m_rom_buffer[0xffff];
     size_t m_bytes_read;
 
 };

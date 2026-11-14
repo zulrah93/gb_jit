@@ -68,7 +68,7 @@ bool draw_gameboy_8_x_16_tile(const std::vector<uint8_t>& tile_data, const int32
 
             switch (left_bit | right_bit) {
                 case 0: {
-                    DrawPixel(x + bit_x, y + bit_y, palete.color1);
+                    // Transparent
                     break;
                 }
                 case 1: {

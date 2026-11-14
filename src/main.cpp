@@ -1,9 +1,7 @@
 #include "raylib.h"
 #include <iostream>
-#include <gameboy_rom_structures.hpp>
-#include <gameboy_render_utils.hpp>
 #include <format>
-#include <bitset>
+#include <gameboy_cpu_gpu_structures.hpp>
 
 static const uint32_t SCREEN_WIDTH{160};
 static const uint32_t SCREEN_HEIGHT{144};
@@ -18,6 +16,7 @@ int main(int argument_count, char** arguments)
         std::vector<uint8_t> boot_logo_buffer;
         if (!rom) {
             std::cout << "Invalid rom @ " << rom_path << std::endl;
+            return 0;
         }
         rom.get_nintendo_boot_logo(boot_logo_buffer);
         std::cout << "Nintendo Boot Logo Bytes: " << std::endl;
@@ -30,12 +29,14 @@ int main(int argument_count, char** arguments)
         SetTargetFPS(60);
         std::string initial_text{"Loading Rom:\n"};
         initial_text += rom_path;
+
+       gameboy_t gameboy(rom);
         while (!WindowShouldClose())
         {
             BeginTextureMode(raster_buffer);
 
             ClearBackground(GB_BACKGROUND);
-            DrawText(rom.get_rom_title().c_str(), 0, 0, 4, GB_FOREGROUND);
+           /* DrawText(rom.get_rom_title().c_str(), 0, 0, 4, GB_FOREGROUND);
             draw_nintendo_boot_logo(boot_logo_buffer, 50, 50);
             palete_t palete{};
             palete.color1 = GB_BACKGROUND;
@@ -45,7 +46,8 @@ int main(int argument_count, char** arguments)
             draw_gameboy_8_x_8_tile({0xFF, 0x00, 0x7E, 0xFF, 0x85, 0x81, 0x89, 0x83, 0x93, 0x85, 0xA5, 0x8B, 0xC9, 0x97, 0x7E, 0xFF }, 10, 100, palete);
             draw_gameboy_8_x_16_tile({0x18, 0x18, 0x3C, 0x3C, 0x7E, 0x7E, 0xFF, 0xFF, 0x18,
                             0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18,
-                            0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18}, 10, 116, palete);
+                            0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18}, 10, 116, palete);*/
+            gameboy.on_render();
             EndTextureMode();
 
             BeginDrawing();
@@ -55,6 +57,7 @@ int main(int argument_count, char** arguments)
             Rectangle destination{0, 0, static_cast<float>(GetScreenWidth()), static_cast<float>(GetScreenHeight())};
             Vector2 origin{0, 0};
             DrawTexturePro(raster_buffer.texture, source, destination, origin , 0.0, WHITE);
+
 
             EndDrawing();
         }
