@@ -27,7 +27,7 @@ class gameboy_t {
 public:
     gameboy_t(const gameboy_rom_t& rom)  {
             if (rom) {
-                m_ram = new int8_t[0xffff];
+                m_ram = new int8_t[0xffffff];
                memset(m_ram, 0, sizeof(m_ram));
                 m_cpu_state.ram = m_ram;
                memcpy(m_ram,  rom.get_rom_data(), rom.get_rom_size());
@@ -58,8 +58,22 @@ public:
         palete.color4 = Color{0x1b, 0x2a, 0x09, 0xff};
         size_t bytes_added{};
          std::vector<uint8_t> temp_bytes;
+        for (size_t index = 0x18000; index <  0x23FFF; index++) {
+            if (bytes_added == 16) {
+                draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
+                x += 8;
+                if (x >= 160) {
+                    x = 0;
+                    y += 8;
+                }
+                bytes_added = 0;
+                temp_bytes.clear();
+            }
+            temp_bytes.push_back(m_ram[index]);
+            bytes_added++;
+        }
 
-        for (size_t index = 0x323F; index <  0x3E8E; index++) {
+     /*   for (size_t index = 0x323F; index <  0x3E8E; index++) {
             if (bytes_added == 16) {
                 draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
                 x += 8;
@@ -90,7 +104,7 @@ public:
             }
             temp_bytes.push_back(m_ram[index]);
             bytes_added++;
-        }
+        }*/
     }
 private:
     void initialize_opcodes() {
