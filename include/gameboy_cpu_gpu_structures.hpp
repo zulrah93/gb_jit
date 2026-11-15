@@ -25,13 +25,18 @@ struct gameboy_opcodes_t {
 
 class gameboy_t {
 public:
-    gameboy_t(gameboy_rom_t rom) : m_loaded_rom{rom} {
+    gameboy_t(const gameboy_rom_t& rom)  {
             if (rom) {
+                m_ram = new int8_t[0xffff];
                memset(m_ram, 0, sizeof(m_ram));
                 m_cpu_state.ram = m_ram;
                memcpy(m_ram,  rom.get_rom_data(), rom.get_rom_size());
-               //initialize_opcodes();
+               initialize_opcodes();
             }
+    }
+
+    ~gameboy_t() {
+        delete[] m_ram;
     }
 
     bool start_system() {
@@ -104,10 +109,20 @@ private:
             state.ram[address] = state.register_a;
             state.program_counter++;
         };
+        m_opcodes.opcodes[0x3] = [](gameboy_cpu_state_t& state) {
+            uint16_t register_bc = (state.register_b << 8) | state.register_c;
+            register_bc++;
+            state.register_c = register_bc & 0xff;
+            state.register_b = (register_bc >> 8) & 0xff;
+            state.program_counter++;
+        }; // Missing flags status
+        m_opcodes.opcodes[0x4] = [](gameboy_cpu_state_t& state) {
+            state.register_b++;
+            state.program_counter++;
+        };
     }
     gameboy_cpu_state_t m_cpu_state;
-    int8_t m_ram[0xffff];
-    gameboy_rom_t m_loaded_rom;
+    int8_t* m_ram;
     gameboy_opcodes_t m_opcodes;
 };
 
