@@ -1,0 +1,1 @@
+clang++ src/main.cpp -o bin/gb_jit -O3 -cxx-isysteminclude -Wall --std=c++23  -lraylib  -I /usr/local/include/raylib/include/ -L /usr/local/lib/ -Wl,-rpath,/usr/local/lib 

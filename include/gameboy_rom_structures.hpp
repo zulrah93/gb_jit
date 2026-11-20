@@ -2,7 +2,7 @@
 #define GAMEBOY_ROM_STRUCTS_HPP
 
 #include <vector>
-#include <string>
+#include <cstring>
 #include <cstdint>
 #include <stdio.h>
 
