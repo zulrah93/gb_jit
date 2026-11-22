@@ -19,6 +19,40 @@ struct gameboy_cpu_state_t {
     int8_t* ram;
 };
 
+namespace flag_register_helper {
+    void set_zero_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register |= (1 << 8);
+    }
+
+    void unset_zero_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register &= 0b01111111;
+    }
+
+    void set_negative_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register |= (1 << 7);
+    }
+
+    void unset_negative_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register &= 0b10111111;
+    }
+
+    void set_half_carry_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register |= (1 << 6);
+    }
+
+    void unset_half_carry_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register &= 0b11011111;
+    }
+
+    void set_carry_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register |= (1 << 5);
+    }
+
+    void unset_carry_on_flag_register(gameboy_cpu_state_t& state) {
+        state.flag_register &= 0b11101111;
+    }
+};
+
 struct gameboy_opcodes_t {
     std::function<void(gameboy_cpu_state_t&)> opcodes[0xff];
 };
@@ -108,31 +142,113 @@ public:
     }
 private:
     void initialize_opcodes() {
+        //Source: https://izik1.github.io/gbops/
         m_opcodes.opcodes[0x0] = [](gameboy_cpu_state_t& state) {
             //NOP
             state.program_counter++;
         };
+
         m_opcodes.opcodes[0x1] = [](gameboy_cpu_state_t& state) {
             int16_t u16 = *reinterpret_cast<int16_t*>(&state.ram[state.program_counter+1]);
             state.register_c = u16 & 0xff;
             state.register_b = (u16 >> 8) & 0xff;
             state.program_counter += 3;
         };
+
         m_opcodes.opcodes[0x2] = [](gameboy_cpu_state_t& state) {
             uint16_t address = (state.register_b << 8) | state.register_c;
             state.ram[address] = state.register_a;
             state.program_counter++;
         };
+
         m_opcodes.opcodes[0x3] = [](gameboy_cpu_state_t& state) {
             uint16_t register_bc = (state.register_b << 8) | state.register_c;
             register_bc++;
             state.register_c = register_bc & 0xff;
             state.register_b = (register_bc >> 8) & 0xff;
             state.program_counter++;
-        }; // Missing flags status
+        };
+
         m_opcodes.opcodes[0x4] = [](gameboy_cpu_state_t& state) {
             state.register_b++;
+            if (state.register_b == 0) {
+                flag_register_helper::set_zero_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_zero_on_flag_register(state);
+            }
+            if (state.register_b > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            flag_register_helper::unset_negative_on_flag_register(state);
             state.program_counter++;
+        };
+
+        m_opcodes.opcodes[0x5] = [](gameboy_cpu_state_t& state) {
+            state.register_b--;
+            if (state.register_b == 0) {
+                flag_register_helper::set_zero_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_zero_on_flag_register(state);
+            }
+            if (state.register_b > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            flag_register_helper::set_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_opcodes.opcodes[0x6] = [](gameboy_cpu_state_t& state) {
+            uint8_t u8 = state.ram[state.program_counter+1];
+            state.register_b = u8;
+            state.program_counter += 2;
+        };
+
+        m_opcodes.opcodes[0x7] = [](gameboy_cpu_state_t& state) {
+            uint16_t register_a = state.register_a;
+            register_a <<= 1;
+            bool has_carry = register_a & 0b100000000;
+            flag_register_helper::unset_zero_on_flag_register(state);
+            flag_register_helper::unset_negative_on_flag_register(state);
+            flag_register_helper::unset_carry_on_flag_register(state);
+            flag_register_helper::unset_half_carry_on_flag_register(state);
+            if (has_carry) {
+                flag_register_helper::set_carry_on_flag_register(state);
+            }
+            state.register_a = static_cast<uint8_t>(register_a & 0xff);
+            state.program_counter++;
+        };
+
+        m_opcodes.opcodes[0x8] = [](gameboy_cpu_state_t& state) {
+            uint16_t u16 = (state.ram[state.program_counter+2] << 1) | state.ram[state.program_counter+1];
+            state.ram[u16] = state.stack_pointer & 0xff;
+            state.ram[u16+1] = (state.stack_pointer >> 8) & 0xff;
+            uint32_t hl = (state.register_h << 8)  | state.register_l;
+            uint16_t bc = (state.register_b << 8)  | state.register_c;
+            hl = hl + bc;
+            if (hl > 0xffff) {
+                flag_register_helper::set_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_carry_on_flag_register(state);
+            }
+            if (hl > 0xfff) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            state.register_h = (hl >> 8) & 0xff;
+            state.register_l = hl & 0xff;
+            flag_register_helper::unset_negative_on_flag_register(state);
+            state.program_counter += 3;
         };
     }
     gameboy_cpu_state_t m_cpu_state;
