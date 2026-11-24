@@ -56,7 +56,7 @@ public:
         }
     }
 
-    std::string get_rom_title() {
+    std::string get_rom_title() const {
         if (!m_rom_loaded) {
             throw "Invalid rom!";
         }

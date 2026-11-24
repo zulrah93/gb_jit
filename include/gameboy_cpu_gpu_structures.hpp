@@ -64,8 +64,9 @@ struct gameboy_opcodes_t {
 
 class gameboy_t {
 public:
-    gameboy_t(const gameboy_rom_t& rom)  {
+    gameboy_t(const gameboy_rom_t& rom) : m_cpu_halted{true}  {
             if (rom) {
+                m_rom_title = rom.get_rom_title();
                 m_ram = new int8_t[0xffffff];
                memset(m_ram, 0, sizeof(m_ram));
                 m_cpu_state.ram = m_ram;
@@ -81,13 +82,14 @@ public:
     bool start_system() {
         m_cpu_state = {};
         m_cpu_state.program_counter = 0x100;
+        m_cpu_halted = true;
     }
 
     void on_update() {
-
+        // Run GB CPU on one thread
+        // Run GB PPU on another thread?
     }
     void on_render() {
-
         size_t x = 0;
         size_t y = 0;
         palete_t palete{};
@@ -96,54 +98,59 @@ public:
         palete.color3 = Color{0x0e, 0x45, 0x0b, 0xff};
         palete.color4 = Color{0x1b, 0x2a, 0x09, 0xff};
         size_t bytes_added{};
-         std::vector<uint8_t> temp_bytes;
-        for (size_t index = 0x18000; index <  0x23FFF; index++) {
-            if (bytes_added == 16) {
-                draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
-                x += 8;
-                if (x >= 160) {
-                    x = 0;
-                    y += 8;
+        std::vector<uint8_t> temp_bytes;
+
+        if (m_rom_title == "METROID2") {
+            for (size_t index = 0x18000; index <  0x23FFF; index++) {
+                if (bytes_added == 16) {
+                    draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
+                    x += 8;
+                    if (x >= 160) {
+                        x = 0;
+                        y += 8;
+                    }
+                    bytes_added = 0;
+                    temp_bytes.clear();
                 }
-                bytes_added = 0;
-                temp_bytes.clear();
+                temp_bytes.push_back(m_ram[index]);
+                bytes_added++;
             }
-            temp_bytes.push_back(m_ram[index]);
-            bytes_added++;
         }
 
-     /*   for (size_t index = 0x323F; index <  0x3E8E; index++) {
-            if (bytes_added == 16) {
-                draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
-                x += 8;
-                if (x >= 160) {
-                    x = 0;
-                    y += 8;
+        if (m_rom_title == "TETRIS") {
+            for (size_t index = 0x323F; index <  0x3E8E; index++) {
+                if (bytes_added == 16) {
+                    draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
+                    x += 8;
+                    if (x >= 160) {
+                        x = 0;
+                        y += 8;
+                    }
+                    bytes_added = 0;
+                    temp_bytes.clear();
                 }
-                bytes_added = 0;
-                temp_bytes.clear();
+                temp_bytes.push_back(m_ram[index]);
+                bytes_added++;
             }
-            temp_bytes.push_back(m_ram[index]);
-            bytes_added++;
+
+            bytes_added = 0;
+            temp_bytes.clear();
+
+            for (size_t index = 0x55AC; index <  0x62AB; index++) {
+                if (bytes_added == 16) {
+                    draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
+                    x += 8;
+                    if (x >= 160) {
+                        x = 0;
+                        y += 8;
+                    }
+                    bytes_added = 0;
+                    temp_bytes.clear();
+                }
+                temp_bytes.push_back(m_ram[index]);
+                bytes_added++;
+            }
         }
-
-        bytes_added = 0;
-        temp_bytes.clear();
-
-       for (size_t index = 0x55AC; index <  0x62AB; index++) {
-            if (bytes_added == 16) {
-                draw_gameboy_8_x_8_tile(temp_bytes, x, y, palete);
-                x += 8;
-                if (x >= 160) {
-                    x = 0;
-                    y += 8;
-                }
-                bytes_added = 0;
-                temp_bytes.clear();
-            }
-            temp_bytes.push_back(m_ram[index]);
-            bytes_added++;
-        }*/
     }
 private:
     void initialize_opcodes() {
@@ -335,7 +342,7 @@ private:
         };
 
         m_opcodes.opcodes[0x10] = [](gameboy_cpu_state_t& state) {
-            state.program_counter++; //STOP
+            state.program_counter += 2; //NOTE: STOP instruction skips the next byte but does not care what value that byte is
         };
 
         m_opcodes.opcodes[0x11] = [](gameboy_cpu_state_t& state) {
@@ -402,13 +409,62 @@ private:
         };
 
         m_opcodes.opcodes[0x17] = [](gameboy_cpu_state_t& state) {
-            throw "opcode not implemented";
+              uint8_t previous_carry_value = (state.flag_register >> 4) & 1;
+              uint8_t new_carry_value =  (state.register_a >> 7) & 1;
+              if (1 == new_carry_value) {
+                  flag_register_helper::set_carry_on_flag_register(state);
+              }
+              else {
+                flag_register_helper::unset_carry_on_flag_register(state);
+              }
+              state.register_a <<= 1;
+              state.register_a |= previous_carry_value;
+              flag_register_helper::unset_zero_on_flag_register(state);
+              flag_register_helper::unset_negative_on_flag_register(state);
+              flag_register_helper::unset_half_carry_on_flag_register(state);
+              state.program_counter++;
         };
+
+        m_opcodes.opcodes[0x18] = [](gameboy_cpu_state_t& state) {
+            uint8_t relative_offset = state.ram[state.program_counter+1];
+            state.program_counter = state.program_counter+relative_offset+1;
+        };
+
+        m_opcodes.opcodes[0x19] = [](gameboy_cpu_state_t& state) {
+            uint32_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
+            uint16_t de = (static_cast<uint16_t>(state.register_d) << 8)  | state.register_e;
+            hl = hl + de;
+            if (hl > 0xffff) {
+                flag_register_helper::set_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_carry_on_flag_register(state);
+            }
+            if (hl > 0xfff) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            state.register_h = (hl >> 8) & 0xff;
+            state.register_l = hl & 0xff;
+            flag_register_helper::unset_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_opcodes.opcodes[0x1a] = [](gameboy_cpu_state_t& state) {
+            uint16_t address = (static_cast<uint16_t>(state.register_d) << 8) | state.register_e;
+            state.register_a = state.ram[address];
+            state.program_counter++;
+        };
+
 
     }
     gameboy_cpu_state_t m_cpu_state;
     int8_t* m_ram;
     gameboy_opcodes_t m_opcodes;
+    bool m_cpu_halted;
+    std::string m_rom_title;
 };
 
 #endif
