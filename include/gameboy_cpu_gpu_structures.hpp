@@ -5,6 +5,13 @@
 #include <gameboy_render_utils.hpp>
 #include <functional>
 
+enum gameboy_flags_t : uint8_t {
+    carry = 4,
+    half_carry = 5,
+    negative = 6,
+    zero = 7
+};
+
 struct gameboy_cpu_state_t {
     uint8_t register_a;
     uint8_t register_b;
@@ -81,13 +88,14 @@ public:
 
     bool start_system() {
         m_cpu_state = {};
-        m_cpu_state.program_counter = 0x100;
-        m_cpu_halted = true;
+        m_cpu_state.program_counter = 0x0;
+        m_cpu_halted = false;
     }
 
     void on_update() {
-        // Run GB CPU on one thread
-        // Run GB PPU on another thread?
+        while (!m_cpu_halted) {
+          m_functors.opcodes[m_cpu_state.ram[m_cpu_state.program_counter]](m_cpu_state);
+        }
     }
     void on_render() {
         size_t x = 0;
@@ -155,25 +163,25 @@ public:
 private:
     void initialize_opcodes() {
         //Source: https://izik1.github.io/gbops/
-        m_opcodes.opcodes[0x0] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x0] = [](gameboy_cpu_state_t& state) {
             //NOP
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x1] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x1] = [](gameboy_cpu_state_t& state) {
             uint16_t u16 = *reinterpret_cast<uint16_t*>(&state.ram[state.program_counter+1]);
             state.register_c = u16 & 0xff;
             state.register_b = (u16 >> 8) & 0xff;
             state.program_counter += 3;
         };
 
-        m_opcodes.opcodes[0x2] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x2] = [](gameboy_cpu_state_t& state) {
             uint16_t address = (static_cast<uint16_t>(state.register_b) << 8) | state.register_c;
             state.ram[address] = state.register_a;
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x3] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x3] = [](gameboy_cpu_state_t& state) {
             uint16_t register_bc = (static_cast<uint16_t>(state.register_b) << 8) | state.register_c;
             register_bc++;
             state.register_c = register_bc & 0xff;
@@ -181,7 +189,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x4] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x4] = [](gameboy_cpu_state_t& state) {
             state.register_b++;
             if (state.register_b == 0) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -199,7 +207,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x5] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x5] = [](gameboy_cpu_state_t& state) {
             state.register_b--;
             if (state.register_b == 0) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -217,13 +225,13 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x6] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x6] = [](gameboy_cpu_state_t& state) {
             uint8_t u8 = state.ram[state.program_counter+1];
             state.register_b = u8;
             state.program_counter += 2;
         };
 
-        m_opcodes.opcodes[0x7] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x7] = [](gameboy_cpu_state_t& state) {
             uint16_t register_a = state.register_a;
             register_a <<= 1;
             bool has_carry = register_a & 0b100000000;
@@ -238,14 +246,14 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x8] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x8] = [](gameboy_cpu_state_t& state) {
             uint16_t u16 = (state.ram[state.program_counter+2] << 1) | state.ram[state.program_counter+1];
             state.ram[u16] = state.stack_pointer & 0xff;
             state.ram[u16+1] = (state.stack_pointer >> 8) & 0xff;
             state.program_counter += 3;
         };
 
-        m_opcodes.opcodes[0x9] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x9] = [](gameboy_cpu_state_t& state) {
             uint32_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
             uint16_t bc = (static_cast<uint16_t>(state.register_b) << 8)  | state.register_c;
             hl = hl + bc;
@@ -267,13 +275,13 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0xa] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0xa] = [](gameboy_cpu_state_t& state) {
             uint16_t address = (static_cast<uint16_t>(state.register_b) << 8) | state.register_c;
             state.register_a = state.ram[address];
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0xb] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0xb] = [](gameboy_cpu_state_t& state) {
             uint16_t register_bc = (static_cast<uint16_t>(state.register_b) << 8) | state.register_c;
             register_bc--;
             state.register_b = (register_bc >> 8) & 0xff;
@@ -281,7 +289,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0xc] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0xc] = [](gameboy_cpu_state_t& state) {
             state.register_c++;
             if (0 == state.register_c) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -301,7 +309,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0xd] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0xd] = [](gameboy_cpu_state_t& state) {
             state.register_c--;
             if (0 == state.register_c) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -321,13 +329,13 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0xe] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0xe] = [](gameboy_cpu_state_t& state) {
             uint8_t u8 = state.ram[state.program_counter+1];
             state.register_c = u8;
             state.program_counter += 2;
         };
 
-        m_opcodes.opcodes[0xf] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0xf] = [](gameboy_cpu_state_t& state) {
             state.register_a >>= 1;
             if (state.register_a & 0b10000000) {
                 flag_register_helper::set_carry_on_flag_register(state);
@@ -341,24 +349,24 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x10] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x10] = [](gameboy_cpu_state_t& state) {
             state.program_counter += 2; //NOTE: STOP instruction skips the next byte but does not care what value that byte is
         };
 
-        m_opcodes.opcodes[0x11] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x11] = [](gameboy_cpu_state_t& state) {
             uint16_t u16 = *reinterpret_cast<uint16_t*>(&state.ram[state.program_counter+1]);
             state.register_e = u16 & 0xff;
             state.register_d = (u16 >> 8) & 0xff;
             state.program_counter += 3;
         };
 
-        m_opcodes.opcodes[0x12] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x12] = [](gameboy_cpu_state_t& state) {
             uint16_t address = (static_cast<uint16_t>(state.register_d) << 8)  | state.register_e;
             state.ram[address] = state.register_a;
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x13] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x13] = [](gameboy_cpu_state_t& state) {
             uint16_t de = (static_cast<uint16_t>(state.register_d) << 8)  | state.register_e;
             de++;
             state.register_d  = (de >> 8) & 0xff;
@@ -366,7 +374,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x14] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x14] = [](gameboy_cpu_state_t& state) {
             state.register_d++;
             if (state.register_d == 0) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -384,7 +392,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x15] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x15] = [](gameboy_cpu_state_t& state) {
             state.register_d--;
             if (state.register_d == 0) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -402,15 +410,15 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x16] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x16] = [](gameboy_cpu_state_t& state) {
             uint8_t u8 = state.ram[state.program_counter+1];
             state.register_d = u8;
             state.program_counter += 2;
         };
 
-        m_opcodes.opcodes[0x17] = [](gameboy_cpu_state_t& state) {
-              uint8_t previous_carry_value = (state.flag_register >> 4) & 1;
-              uint8_t new_carry_value =  (state.register_a >> 7) & 1;
+        m_functors.opcodes[0x17] = [](gameboy_cpu_state_t& state) {
+              uint8_t previous_carry_value = (state.flag_register >> gameboy_flags_t::carry) & 1;
+              uint8_t new_carry_value =  (state.register_a >> gameboy_flags_t::zero) & 1;
               if (1 == new_carry_value) {
                   flag_register_helper::set_carry_on_flag_register(state);
               }
@@ -425,12 +433,12 @@ private:
               state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x18] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x18] = [](gameboy_cpu_state_t& state) {
             uint8_t relative_offset = state.ram[state.program_counter+1];
             state.program_counter = state.program_counter+relative_offset+1;
         };
 
-        m_opcodes.opcodes[0x19] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x19] = [](gameboy_cpu_state_t& state) {
             uint32_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
             uint16_t de = (static_cast<uint16_t>(state.register_d) << 8)  | state.register_e;
             hl = hl + de;
@@ -452,13 +460,13 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x1a] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x1a] = [](gameboy_cpu_state_t& state) {
             uint16_t address = (static_cast<uint16_t>(state.register_d) << 8) | state.register_e;
             state.register_a = state.ram[address];
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x1b] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x1b] = [](gameboy_cpu_state_t& state) {
             uint16_t register_de = (static_cast<uint16_t>(state.register_d) << 8) | state.register_e;
             register_de--;
             state.register_d = (register_de >> 8) & 0xff;
@@ -466,7 +474,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x1c] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x1c] = [](gameboy_cpu_state_t& state) {
             state.register_e++;
             if (0 == state.register_e) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -486,7 +494,7 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x1d] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x1d] = [](gameboy_cpu_state_t& state) {
             state.register_e--;
             if (0 == state.register_e) {
                 flag_register_helper::set_zero_on_flag_register(state);
@@ -506,14 +514,14 @@ private:
             state.program_counter++;
         };
 
-        m_opcodes.opcodes[0x1e] = [](gameboy_cpu_state_t& state) {
+        m_functors.opcodes[0x1e] = [](gameboy_cpu_state_t& state) {
             uint8_t u8 = state.ram[state.program_counter+1];
             state.register_e = u8;
             state.program_counter += 2;
         };
 
-        m_opcodes.opcodes[0x1f] = [](gameboy_cpu_state_t& state) {
-            uint8_t previous_carry_value = (state.flag_register >> 4) & 1;
+        m_functors.opcodes[0x1f] = [](gameboy_cpu_state_t& state) {
+            uint8_t previous_carry_value = (state.flag_register >> gameboy_flags_t::carry) & 1;
             uint8_t new_carry_value =  state.register_a  & 1;
             if (1 == new_carry_value) {
                 flag_register_helper::set_carry_on_flag_register(state);
@@ -528,10 +536,105 @@ private:
             flag_register_helper::unset_half_carry_on_flag_register(state);
             state.program_counter++;
         };
+
+        m_functors.opcodes[0x20] = [](gameboy_cpu_state_t& state) {
+            bool is_zero = (state.flag_register >> gameboy_flags_t::zero) & 1;
+            if (!is_zero) { //  NZ
+                uint8_t relative_address = state.ram[state.program_counter+1];
+                state.program_counter = state.program_counter + relative_address + 1;
+            }
+        };
+
+        m_functors.opcodes[0x21] = [](gameboy_cpu_state_t& state) {
+            uint16_t u16 = *reinterpret_cast<uint16_t*>(&state.ram[state.program_counter+1]);
+            state.register_l = u16 & 0xff;
+            state.register_h = (u16 >> 8) & 0xff;
+            state.program_counter += 3;
+        };
+
+        m_functors.opcodes[0x22] = [](gameboy_cpu_state_t& state) {
+            uint16_t address = (static_cast<uint16_t>(state.register_h) << 8) | state.register_l;
+            state.ram[address] = state.register_a;
+            const uint16_t hl = address+1;
+            state.register_l = hl & 0xff;
+            state.register_h = (hl >> 0x8) & 0xff;
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x23] = [](gameboy_cpu_state_t& state) {
+            uint16_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
+            hl++;
+            state.register_l  = (hl >> 8) & 0xff;
+            state.register_h = hl & 0xff;
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x24] = [](gameboy_cpu_state_t& state) {
+            state.register_h++;
+            if (state.register_h == 0) {
+                flag_register_helper::set_zero_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_zero_on_flag_register(state);
+            }
+            if (state.register_h > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            flag_register_helper::unset_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x25] = [](gameboy_cpu_state_t& state) {
+            state.register_h--;
+            if (state.register_h == 0) {
+                flag_register_helper::set_zero_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_zero_on_flag_register(state);
+            }
+            if (state.register_h > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            flag_register_helper::set_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x26] = [](gameboy_cpu_state_t& state) {
+            uint8_t u8 = state.ram[state.program_counter+1];
+            state.register_h = u8;
+            state.program_counter += 2;
+        };
+
+        m_functors.opcodes[0x27] = [](gameboy_cpu_state_t& state) {
+            bool half_carry = ((state.flag_register >> gameboy_flags_t::half_carry) & 1) == 1;
+            bool carry = ((state.flag_register >> gameboy_flags_t::carry) & 1) == 1;
+            if ((state.register_a & 0xf) > 0x09 || half_carry) {
+                state.register_a |= 0x06;
+            }
+
+            if ((state.register_a > 0x99) || carry){
+                state.register_a |= 0x60;
+            }
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x28] = [](gameboy_cpu_state_t& state) {
+            bool is_zero = (state.flag_register >> gameboy_flags_t::zero) & 1;
+            if (is_zero) { //  NZ
+                uint8_t relative_address = state.ram[state.program_counter+1];
+                state.program_counter = state.program_counter + relative_address + 1;
+            }
+        };
     }
     gameboy_cpu_state_t m_cpu_state;
     int8_t* m_ram;
-    gameboy_opcodes_t m_opcodes;
+    gameboy_opcodes_t m_functors;
     bool m_cpu_halted;
     std::string m_rom_title;
 };
