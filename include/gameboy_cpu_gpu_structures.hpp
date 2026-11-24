@@ -522,7 +522,7 @@ private:
                 flag_register_helper::unset_carry_on_flag_register(state);
             }
             state.register_a >>= 1;
-            state.register_a |= (previous_carry_value >> 7);
+            state.register_a |= (previous_carry_value << 7);
             flag_register_helper::unset_zero_on_flag_register(state);
             flag_register_helper::unset_negative_on_flag_register(state);
             flag_register_helper::unset_half_carry_on_flag_register(state);
