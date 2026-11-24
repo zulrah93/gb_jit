@@ -69,9 +69,13 @@ struct gameboy_opcodes_t {
     std::function<void(gameboy_cpu_state_t&)> opcodes[0xff];
 };
 
+static constexpr size_t OAM_START_ADDRESS{0xFE00};
+static constexpr size_t OAM_END_ADDRESS{0xFE9F};
+static constexpr size_t OAM_DMA_ADDRESS{0xFF46};
+
 class gameboy_t {
 public:
-    gameboy_t(const gameboy_rom_t& rom) : m_cpu_halted{true}  {
+    gameboy_t(const gameboy_rom_t& rom) : m_cpu_halted{true}, m_dma_register_hit{false}  {
             if (rom) {
                 m_rom_title = rom.get_rom_title();
                 m_ram = new int8_t[0xffffff];
@@ -632,11 +636,25 @@ private:
             }
         };
     }
+
+    void oam_search() {
+    }
+
+    bool check_oam_dma_transfer() {
+        if (m_dma_register_hit) {
+            m_dma_register_hit = false;
+            return true;
+        }
+    }
+
+    void do_oam_dma_transfer() {
+    }
     gameboy_cpu_state_t m_cpu_state;
     int8_t* m_ram;
     gameboy_opcodes_t m_functors;
     bool m_cpu_halted;
     std::string m_rom_title;
+    bool m_dma_register_hit;
 };
 
 #endif
