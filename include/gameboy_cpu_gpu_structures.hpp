@@ -12,6 +12,18 @@ enum gameboy_flags_t : uint8_t {
     zero = 7
 };
 
+//Source: https://gbdev.io/pandocs/LCDC.html
+struct gameboy_lcd_control_register_t {
+    uint8_t lcd_enable : 1;
+    uint8_t window_tile_map_area : 1;
+    uint8_t enable_window : 1;
+    uint8_t window_tile_data_area : 1;
+    uint8_t background_tile_map_area : 1;
+    uint8_t object_type : 1;
+    uint8_t enable_objects : 1;
+    uint8_t background_and_window_enable : 1;
+};
+
 struct gameboy_cpu_state_t {
     uint8_t register_a;
     uint8_t register_b;
@@ -72,6 +84,7 @@ struct gameboy_opcodes_t {
 static constexpr size_t OAM_START_ADDRESS{0xFE00};
 static constexpr size_t OAM_END_ADDRESS{0xFE9F};
 static constexpr size_t OAM_DMA_ADDRESS{0xFF46};
+static constexpr size_t LCD_CONTROL_REGISTER{0xFF40};
 
 class gameboy_t {
 public:
@@ -649,6 +662,15 @@ private:
 
     void do_oam_dma_transfer() {
     }
+
+    gameboy_lcd_control_register_t get_current_lcd_control_register() {
+        return *reinterpret_cast<gameboy_lcd_control_register_t*>(&m_ram[LCD_CONTROL_REGISTER]);
+    }
+
+    void update_lcd_control_status_register(const gameboy_lcd_control_register_t& lcdc) {
+        m_ram[LCD_CONTROL_REGISTER] = *reinterpret_cast<const uint8_t*>(&lcdc);
+    }
+
     gameboy_cpu_state_t m_cpu_state;
     int8_t* m_ram;
     gameboy_opcodes_t m_functors;
