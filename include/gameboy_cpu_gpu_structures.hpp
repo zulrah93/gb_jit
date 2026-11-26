@@ -76,6 +76,8 @@ static constexpr size_t LCD_CONTROL_REGISTER{0xFF40};
 static constexpr size_t LCD_Y_REGISTER{0xFF44};
 static constexpr size_t LCD_Y_COMPARE_REGISTER{0xFF45};
 static constexpr size_t LCD_STATUS_REGISTER{0xFF41};
+static constexpr size_t SCX_REGISTER{0xFF42};
+static constexpr size_t SCY_REGISTER{0xFF43};
 
 //Source: https://gbdev.io/pandocs/LCDC.html
 struct gameboy_lcd_control_register_t {
@@ -285,7 +287,7 @@ private:
         };
 
         m_functors.opcodes[0x9] = [](gameboy_cpu_state_t& state) {
-            uint32_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
+            uint16_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
             uint16_t bc = (static_cast<uint16_t>(state.register_b) << 8)  | state.register_c;
             hl = hl + bc;
             if (hl > 0xffff) {
@@ -470,7 +472,7 @@ private:
         };
 
         m_functors.opcodes[0x19] = [](gameboy_cpu_state_t& state) {
-            uint32_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
+            uint16_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
             uint16_t de = (static_cast<uint16_t>(state.register_d) << 8)  | state.register_e;
             hl = hl + de;
             if (hl > 0xffff) {
@@ -662,6 +664,36 @@ private:
                 state.program_counter = state.program_counter + relative_address + 1;
             }
         };
+
+        m_functors.opcodes[0x29] = [](gameboy_cpu_state_t& state) {
+            uint16_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
+            hl += hl;
+            if (hl > 0xffff) {
+                flag_register_helper::set_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_carry_on_flag_register(state);
+            }
+            if (hl > 0xfff) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            state.register_h = (hl >> 8) & 0xff;
+            state.register_l = hl & 0xff;
+            flag_register_helper::unset_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x2a] = [](gameboy_cpu_state_t& state) {
+            uint16_t hl = (static_cast<uint16_t>(state.register_h) << 8)  | state.register_l;
+            state.register_a = hl;
+            hl++;
+            state.register_l = hl & 0xff;
+            state.register_h = (hl >> 8) & 0xff;
+            state.program_counter++;
+        };
     }
 
     void oam_search() {
@@ -675,6 +707,14 @@ private:
     }
 
     void do_oam_dma_transfer() {
+    }
+
+    uint8_t get_scx_register() {
+        return m_ram[SCX_REGISTER];
+    }
+
+    uint8_t get_scy_register() {
+        return m_ram[SCY_REGISTER];
     }
 
     gameboy_lcd_control_register_t get_current_lcd_control_register() {
