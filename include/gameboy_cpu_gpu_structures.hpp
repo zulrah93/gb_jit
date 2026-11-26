@@ -694,6 +694,86 @@ private:
             state.register_h = (hl >> 8) & 0xff;
             state.program_counter++;
         };
+
+        m_functors.opcodes[0x2b] = [](gameboy_cpu_state_t& state) {
+            uint16_t register_hl = (static_cast<uint16_t>(state.register_h) << 8) | state.register_l;
+            register_hl--;
+            state.register_h = (register_hl >> 8) & 0xff;
+            state.register_l = register_hl & 0xff;
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x2c] = [](gameboy_cpu_state_t& state) {
+            state.register_l++;
+            if (0 == state.register_l) {
+                flag_register_helper::set_zero_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_zero_on_flag_register(state);
+            }
+
+            if (state.register_l > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+
+            flag_register_helper::unset_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x2d] = [](gameboy_cpu_state_t& state) {
+            state.register_l--;
+            if (0 == state.register_l) {
+                flag_register_helper::set_zero_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_zero_on_flag_register(state);
+            }
+
+            if (state.register_l > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+
+            flag_register_helper::set_negative_on_flag_register(state);
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x2e] = [](gameboy_cpu_state_t& state) {
+            uint8_t u8 = state.ram[state.program_counter+1];
+            state.register_l = u8;
+            state.program_counter += 2;
+        };
+
+        m_functors.opcodes[0x2f] = [](gameboy_cpu_state_t& state) {
+            state.register_a = ~state.register_a;
+            if (state.register_a & 0b10000000) {
+                flag_register_helper::set_negative_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_negative_on_flag_register(state);
+            }
+            if (state.register_a > 0b1111) {
+                flag_register_helper::set_half_carry_on_flag_register(state);
+            }
+            else {
+                flag_register_helper::unset_half_carry_on_flag_register(state);
+            }
+            state.program_counter++;
+        };
+
+        m_functors.opcodes[0x30] = [](gameboy_cpu_state_t& state) {
+            bool is_carry = (state.flag_register >> gameboy_flags_t::carry) & 1;
+            if (!is_carry) { //  NC
+                uint8_t relative_address = state.ram[state.program_counter+1];
+                state.program_counter = state.program_counter + relative_address + 1;
+            }
+        };
+
     }
 
     void oam_search() {
